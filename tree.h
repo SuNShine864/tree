@@ -95,7 +95,7 @@ struct Flags {
   bool noindent, force_color, nocolor, xdev, noreport, nolinks;
   bool ignorecase, matchdirs, fromfile, metafirst, gitignore, showinfo;
   bool reverse, fflinks, htmloffset, acl, selinux, condense_singletons;
-  bool colorize, ansilines, linktargetcolor, remove_space;
+  bool colorize, ansilines, linktargetcolor, remove_space,stat, filterflag;
   int flimit, compress_indent;
 };
 
@@ -319,3 +319,4 @@ void xml_report(struct totals tot);
 #if !defined(__linux__) || defined(__ANDROID__)
 int strverscmp (const char *s1, const char *s2);
 #endif
+extern char *custom_ext;

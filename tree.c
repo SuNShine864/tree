@@ -18,6 +18,10 @@
 
 #include "tree.h"
 
+bool stat_flag = false;
+unsigned long stat_dirs = 0;
+unsigned long stat_files = 0;
+unsigned long stat_depth = 0;
 char *version = "$Version: $ tree v2.3.2 %s 1996 - 2026 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $";
 char *hversion= "\t\t tree v2.3.2 %s 1996 - 2026 by Steve Baker and Thomas Moore <br>\n"
 		"\t\t HTML output hacked and copyleft %s 1998 by Francesc Rocher <br>\n"
@@ -27,7 +31,7 @@ char *hversion= "\t\t tree v2.3.2 %s 1996 - 2026 by Steve Baker and Thomas Moore
 /* Globals */
 struct Flags flag;
 struct listingcalls lc;
-
+char *custom_ext=NULL;
 int pattern = 0, maxpattern = 0, ipattern = 0, maxipattern = 0;
 char **patterns = NULL, **ipatterns = NULL;
 
@@ -112,7 +116,29 @@ char *long_arg(char *argv[], size_t i, size_t *j, size_t *n, char *prefix) {
   }
   return ret;
 }
+void calculate_stats(struct _info **dir, unsigned long depth)
+{
+  if (dir == NULL) return;
 
+  while (*dir) {
+    if ((*dir)->isdir) {
+      stat_dirs++;
+
+      if (depth > stat_depth)
+        stat_depth = depth;
+
+      if ((*dir)->child)
+        calculate_stats((*dir)->child, depth + 1);
+    } else {
+      stat_files++;
+
+      if (depth > stat_depth)
+        stat_depth = depth;
+    }
+
+    dir++;
+  }
+}
 int main(int argc, char **argv)
 {
   struct ignorefile *ig;
@@ -135,7 +161,8 @@ int main(int argc, char **argv)
 
   charset = getcharset();
   if (charset == NULL && 
-       (strcmp(nl_langinfo(CODESET), "UTF-8") == 0 ||
+       (
+strcmp(nl_langinfo(CODESET), "UTF-8") == 0 ||
         strcmp(nl_langinfo(CODESET), "utf8") == 0)) {
     charset = "UTF-8";
   }
@@ -365,6 +392,21 @@ int main(int argc, char **argv)
 	    if (!strcmp("--inodes",argv[i])) {
 	      j = strlen(argv[i])-1;
 	      flag.inode = (opt_toggle? !flag.inode : true);
+	      break;
+	    }
+	    if (!strcmp("--stat",argv[i])) {
+              j = strlen(argv[i])-1;
+              flag.stat = true;
+              break;
+            }
+	    if (!strcmp("--size",argv[i])) {
+              j = strlen(argv[i])-1;
+              flag.s = true;
+              break;
+            }
+            if ((arg = long_arg(argv, i, &j, &n, "--filter")) != NULL) {
+	      flag.filterflag = true;
+	      custom_ext = scopy(arg);
 	      break;
 	    }
 	    if (!strcmp("--device",argv[i])) {
@@ -619,7 +661,7 @@ int main(int argc, char **argv)
     push_infostack(new_infofile(INFO_PATH, false));
   }
 
-  needfulltree = flag.du || flag.prune || flag.matchdirs || flag.fromfile || flag.condense_singletons;
+  needfulltree = flag.du || flag.prune || flag.matchdirs || flag.fromfile || flag.condense_singletons || flag.stat;
 
   emit_tree(dirname, needfulltree);
 
@@ -877,7 +919,15 @@ struct _info *getinfo(const char *name, char *path)
 #endif
 
   if (flag.d && ((st.st_mode & S_IFMT) != S_IFDIR)) return NULL;
-
+  if (flag.filterflag && !isdir) {
+    size_t name_len = strlen(name);
+    size_t ext_len = strlen(custom_ext);
+    
+    // Check if the filename ends exactly with the specified extension suffix
+    if (name_len < ext_len || strcmp(name + name_len - ext_len, custom_ext) != 0) {
+      return NULL; // Drops the file from the graph print mapping entirely
+    }
+  }
 #ifndef __EMX__
 /*    if (pattern && ((lst.st_mode & S_IFMT) == S_IFLNK) && !lflag) continue; */
 #endif
